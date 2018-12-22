@@ -26,6 +26,13 @@ class Proposal < ApplicationRecord
 
   RETIRE_OPTIONS = %w[duplicated started unfeasible done other]
 
+  translates :title, touch: true
+  translates :description, touch: true
+  translates :summary, touch: true
+  translates :retired_explanation, touch: true
+  include Globalizable
+  translation_class_delegate :retired_at
+
   belongs_to :author, -> { with_hidden }, class_name: "User", foreign_key: "author_id"
   belongs_to :geozone
   has_many :comments, as: :commentable, dependent: :destroy
@@ -34,15 +41,16 @@ class Proposal < ApplicationRecord
   has_many :dashboard_actions, through: :dashboard_executed_actions, class_name: "Dashboard::Action"
   has_many :polls, as: :related
 
-  validates :title, presence: true
-  validates :summary, presence: true
+  validates_translation :title, presence: true, length: { in: 4..Proposal.title_max_length }
+  validates_translation :description, length: { maximum: Proposal.description_max_length }
+  validates_translation :summary, presence: true
+  validates_translation :retired_explanation, presence: true, unless: -> { retired_at.blank? }
+
   validates :author, presence: true
   validates :responsible_name, presence: true, unless: :skip_user_verification?
 
-  validates :title, length: { in: 4..Proposal.title_max_length }
-  validates :description, length: { maximum: Proposal.description_max_length }
   validates :responsible_name, length: { in: 6..Proposal.responsible_name_max_length }, unless: :skip_user_verification?
-  validates :retired_reason, inclusion: { in: RETIRE_OPTIONS, allow_nil: true }
+  validates :retired_reason, presence: true, inclusion: { in: RETIRE_OPTIONS }, unless: -> { retired_at.blank? }
 
   validates :terms_of_service, acceptance: { allow_nil: false }, on: :create
 
@@ -256,5 +264,4 @@ class Proposal < ApplicationRecord
         self.responsible_name = author.document_number
       end
     end
-
 end
