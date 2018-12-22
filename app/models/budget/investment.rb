@@ -24,6 +24,10 @@ class Budget
     include Milestoneable
     include Randomizable
 
+    translates :title, touch: true
+    translates :description, touch: true
+    include Globalizable
+
     belongs_to :author, -> { with_hidden }, class_name: "User", foreign_key: "author_id"
     belongs_to :heading
     belongs_to :group
@@ -39,15 +43,13 @@ class Budget
     has_many :comments, -> {where(valuation: false)}, as: :commentable, class_name: "Comment"
     has_many :valuations, -> {where(valuation: true)}, as: :commentable, class_name: "Comment"
 
-    validates :title, presence: true
+    validates_translation :title, presence: true, length: { in: 4..Budget::Investment.title_max_length }
+    validates_translation :description, presence: true, length: { maximum: Budget::Investment.description_max_length }
+
     validates :author, presence: true
-    validates :description, presence: true
     validates :heading_id, presence: true
     validates :unfeasibility_explanation, presence: { if: :unfeasibility_explanation_required? }
     validates :price, presence: { if: :price_required? }
-
-    validates :title, length: { in: 4..Budget::Investment.title_max_length }
-    validates :description, length: { maximum: Budget::Investment.description_max_length }
     validates :terms_of_service, acceptance: { allow_nil: false }, on: :create
 
     scope :sort_by_confidence_score, -> { reorder(confidence_score: :desc, id: :desc) }
@@ -55,7 +57,6 @@ class Budget
     scope :sort_by_price,            -> { reorder(price: :desc, confidence_score: :desc, id: :desc) }
 
     scope :sort_by_id, -> { order("id DESC") }
-    scope :sort_by_title, -> { order("title ASC") }
     scope :sort_by_supports, -> { order("cached_votes_up DESC") }
 
     scope :valuation_open,              -> { where(valuation_finished: false) }
@@ -103,6 +104,10 @@ class Budget
 
     def url
       budget_investment_path(budget, self)
+    end
+
+    def self.sort_by_title
+      all.sort_by(&:title)
     end
 
     def self.filter_params(params)
@@ -174,7 +179,7 @@ class Budget
       if title_or_id =~ /^[0-9]+$/
         results.where(id: title_or_id)
       else
-        results.where("title ILIKE ?", "%#{title_or_id}%")
+        results.with_translations(I18n.locale).where("budget_investment_translations.title ILIKE ?", "%#{title_or_id}%")
       end
     end
 
